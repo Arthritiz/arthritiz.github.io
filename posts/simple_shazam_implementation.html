@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+        <title>Crisp Blog</title>
+        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <link rel="stylesheet" type="text/css" href="../css/slim.css" />
+        <link rel="stylesheet" type="text/css" href="../css/style.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
+    </head>
+
+    <body>
+    <div class="container">
+        <div class="header">
+            <h1 class="site-title"><a href="../">Crisp Blog</a></h1>
+            <div class="nav">
+                <a class="nav-btn" href="#">
+                    <span class="ci ci-burger"></span>
+                </a>
+                <ul class="nav-list">
+                    
+                    <li class="spacer">∾</li>
+                    <li><a href="../">Home</a></li>
+                    <li><a href="mailto:bodw3@qq.com">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+
+
+        <div class="content">
+            <div class="post">
+    <h1 class="post-title"><a href>经典声音指纹算法shazam原理与简单实现</a></h1>
+    <div class="post-date">June 30, 2024</div>
+
+    <div class="post-content">
+        <p>提到听歌识曲，shazam这款产品应该都不陌生。虽然已经使用类似功能无数次，但每当在商场听到抓人的旋律时，只需打开让手机收听几秒钟就能返回曲目名称，这种体验依然让人感到十分奇妙。</p>
+<p>早在2003年，shazam算法的原作者已经为该算法形成了一篇论文<a href="https://ursinus-cs174-s2022.github.io/CoursePage/Assignments/FinalProject_Shazam/Wang03-shazam.pdf">An Industrial-Strength Audio Search Algorithm</a>。与此同时，网络上已有许多对shazam算法的讲解，因此shazam的核心原理已不再是什么秘密。甚至你可以找到由dpwe大佬开源的python版本的shazam项目<a href="https://github.com/dpwe/audfprint">audfprint</a>直接使用。</p>
+<div>
+
+</div>
+<!--more-->
+<p>audfprint项目是一个很好的了解shazam细节的学习工具，因为项目中不仅包含对shazam核心算法的实现，实现过程中还包含大量的基于声学的处理和优化。当然，也正因为如此，该项目具备不小的学习成本。</p>
+<p>所以，这篇文章尝试从audfprint中摘出shazam的核心原理，进行一个相对简易的shazam实现，以更清晰地感受算法本身的精妙设计。此外，对shazam算法中的一些细节，我也会阐述自己的理解。</p>
+<h1 id="信号的时域处理">信号的时域处理</h1>
+<h2 id="将信号拆成小块">将信号拆成小块</h2>
+<p>为了使内容可以被检索，在文本检索中，我们需要将一篇文章拆成词。同样，为了让音频可被检索，第一步需要做的是从时域将音频片段分成若干个小块，也可以叫帧(frame)。</p>
+<p>不同曲目的区分性体现在随时间而产生的不同的声响效果上。只有将音频分成足够多的小块，才能获得声音变化的细节。因此，帧的时长要足够小，这里取0.05秒左右。</p>
+<blockquote>
+<p>0.05秒为300bpm下的16分音符的时长。因此0.05秒能够应付大多数曲目中音符的变化速度。</p>
+</blockquote>
+<p>为了保证帧与帧之间存在相关性，前一帧和后一帧在时域上有部分重叠(overlap)。至于重叠长度，我们取帧长度的1/2。</p>
+<figure>
+<img src="../images/shazam/frame_overlap.png" alt="帧与帧之间有重叠区域" />
+<figcaption aria-hidden="true">帧与帧之间有重叠区域</figcaption>
+</figure>
+<p>为了将原始信号转换为上述要求的帧，audfprint使用了以下方法：</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># stft.py</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> frame(data, window_length, hop_length):</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  num_samples <span class="op">=</span> data.shape[<span class="dv">0</span>]</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  num_frames <span class="op">=</span> <span class="dv">1</span> <span class="op">+</span> ((num_samples <span class="op">-</span> window_length) <span class="op">//</span> hop_length)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  shape <span class="op">=</span> (num_frames, window_length) <span class="op">+</span> data.shape[<span class="dv">1</span>:]</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  strides <span class="op">=</span> (data.strides[<span class="dv">0</span>] <span class="op">*</span> hop_length,) <span class="op">+</span> data.strides</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> np.lib.stride_tricks.as_strided(data, shape<span class="op">=</span>shape, strides<span class="op">=</span>strides)</span></code></pre></div>
+<p>上述方法接收三个参数，data为音频片段，window_length为帧长度，hop_length为前后两帧起点的距离(即步进长度，用于调整overlap)。最终，该方法将输出若干个帧组成的数组。</p>
+<h2 id="窗函数的选择">窗函数的选择</h2>
+<p>如果只是将一段音频拆为多个帧，相当于应用了一个幅值为1、时长为帧长的矩形窗做音频的截取。需要注意的是，对音频的截断会不可避免地产生频谱泄漏（Spectral Leakage）的现象。</p>
+<p>比如，在采样率11025Hz下我们有一个幅值为1、频率为2000Hz的正弦波，我们分别将窗大小为512的矩形窗(boxcar)、hann窗、blackman窗应用在该信号上，然后做FFT得到频谱信息，结果如下：</p>
+<figure>
+<img src="../images/shazam/windows_cmp.png" alt="三种窗对一个正弦波信号的影响" />
+<figcaption aria-hidden="true">三种窗对一个正弦波信号的影响</figcaption>
+</figure>
+<p>可以看到，矩形窗带来的频谱泄漏最为严重，而blackman在远离2000Hz的范围表现最好。但是，blackman的处理让2000Hz附近产生了明显的瓣状效果，这可能会让一个强频率附近的频率被淹没。因此，为了兼顾两者，使用hann窗是一个通用的方案。</p>
+<h1 id="获取频域信息">获取频域信息</h1>
+<p>音频信号的关键特征来源于频域，因此频域分析必不可少。接下来，我们将对上述得到的帧数组中的每一个帧进行频域分析，并最终得到时间-频率形式的频谱图。</p>
+<p>为了分析数字音频信号的频率成分，自然会想到FFT（快速傅里叶变换）。下面我们对FFT相关参数进行设定。</p>
+<h2 id="采样率的选择">采样率的选择</h2>
+<p>对于采样率，audfprint中默认使用11025Hz。根据奈奎斯特采样定理，能表达的频率范围在5512.5Hz以内。这个范围足够涵盖大部分乐器的基频（比如，钢琴的最高音C8的基频在4.1kHz左右）。</p>
+<h2 id="fft长度的选择">FFT长度的选择</h2>
+<p>至于FFT的长度，audfprint使用了512这个值。即每512个采样点做一次FFT，也就是说，大约0.046s的时长做一次FFT，与上述所期望的0.05s为帧长接近。</p>
+<p>对于FFT的实现，我们直接使用numpy库的numpy.fft.rfft(…)即可。下面整理出涉及以上所有流程的代码。</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> librosa</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> frame(data, window_length, hop_length):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  num_samples <span class="op">=</span> data.shape[<span class="dv">0</span>]</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  num_frames <span class="op">=</span> <span class="dv">1</span> <span class="op">+</span> ((num_samples <span class="op">-</span> window_length) <span class="op">//</span> hop_length)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  shape <span class="op">=</span> (num_frames, window_length) <span class="op">+</span> data.shape[<span class="dv">1</span>:]</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  strides <span class="op">=</span> (data.strides[<span class="dv">0</span>] <span class="op">*</span> hop_length,) <span class="op">+</span> data.strides</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> np.lib.stride_tricks.as_strided(data, shape<span class="op">=</span>shape, strides<span class="op">=</span>strides)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>N_FFT <span class="op">=</span> <span class="dv">512</span> <span class="co"># FFT长度</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>N_HOP <span class="op">=</span> <span class="dv">256</span> <span class="co"># 步进长度</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>SR<span class="op">=</span><span class="dv">11025</span> <span class="co"># 采样率</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>filename <span class="op">=</span> <span class="st">&quot;./data/Nine_Lives/01.mp3&quot;</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>y, sr <span class="op">=</span> librosa.load(filename, sr<span class="op">=</span>SR) <span class="co"># 读取音频</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 音频长度小于FFT长度的话，补齐长度</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(y) <span class="op">&lt;</span> N_FFT:</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    padding_len <span class="op">=</span> N_FFT<span class="op">-</span><span class="bu">len</span>(y)</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> np.pad(y, (<span class="dv">0</span>, padding_len), mode<span class="op">=</span><span class="st">'constant'</span>)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>frames <span class="op">=</span> frame(y, N_FFT, N_HOP) <span class="co"># 将音频拆成连续的帧</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>window <span class="op">=</span> np.hanning(N_FFT <span class="op">+</span> <span class="dv">2</span>)[<span class="dv">1</span>:<span class="op">-</span><span class="dv">1</span>] <span class="co"># 定义汉宁窗</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>frames <span class="op">=</span> frames <span class="op">*</span> window <span class="co"># 窗应用到信号上</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>sgram <span class="op">=</span> np.<span class="bu">abs</span>(np.fft.rfft(frames, N_FFT).transpose()) <span class="co"># 做FFT，转置并求绝对值，以此得到时间-频率形式的频谱图</span></span></code></pre></div>
+<p>上述代码中，sgram为一个二维数组，其第一维为频率维度，以FFT得到的频率段（frequency bin）为单位。第二维为时间维度，以帧为单位。于是，sgram中每个元素代表某个帧下的某个频率段的强度信息。</p>
+<h1 id="生成星座图">生成星座图</h1>
+<p>星座图（Constellation Map）是shazam算法的一个核心概念，是基于上述得到的频谱图演变而来的，依旧保留了时间-频率的两个维度。只不过shazam通过一些规则从频谱图的每一帧依次挑选出最关键的几个频率段，由此构成了星座图。</p>
+<p>被挑选出的频率段一般具备比较强的代表性，比如帧中强度最大的几个频率段。</p>
+<p>注意，星座图会将频率段的强度信息抹掉，图中的每个点只有时间和频率信息。也就是说，星座图中的所有点都会被同等对待。</p>
+<figure>
+<img src="../images/shazam/spectro_to_constellation.png" alt="频谱图到星座图" />
+<figcaption aria-hidden="true">频谱图到星座图</figcaption>
+</figure>
+<p>下面继续对之前代码得到的sgram进行处理，得到星座图。代码基本来自audfprint。</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> locmax(vec, indices<span class="op">=</span><span class="va">False</span>): <span class="co"># 从数组vec中找出极大值</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    nbr <span class="op">=</span> np.zeros(<span class="bu">len</span>(vec) <span class="op">+</span> <span class="dv">1</span>, dtype<span class="op">=</span><span class="bu">bool</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    nbr[<span class="dv">0</span>] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    nbr[<span class="dv">1</span>:<span class="op">-</span><span class="dv">1</span>] <span class="op">=</span> np.greater_equal(vec[<span class="dv">1</span>:], vec[:<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    maxmask <span class="op">=</span> (nbr[:<span class="op">-</span><span class="dv">1</span>] <span class="op">&amp;</span> <span class="op">~</span>nbr[<span class="dv">1</span>:])</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> indices:</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> np.nonzero(maxmask)[<span class="dv">0</span>]</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> maxmask</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>N_MAXPEAKSPERFRAME <span class="op">=</span> <span class="dv">5</span> <span class="co"># 每帧最多取多少个频率段</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>scols <span class="op">=</span> sgram.shape[<span class="dv">1</span>]</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>peaks_at <span class="op">=</span> [[] <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(scols)]</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> col <span class="kw">in</span> <span class="bu">range</span>(scols): <span class="co"># 按帧顺序进行遍历</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    s_col <span class="op">=</span> sgram[:, col] <span class="co"># 获取指定帧的内容</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    sdmaxposs <span class="op">=</span> np.nonzero(locmax(s_col))[<span class="dv">0</span>] <span class="co"># 找到该帧下的所有频率段极大值</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    valspeaks <span class="op">=</span> <span class="bu">sorted</span>(<span class="bu">zip</span>(s_col[sdmaxposs], sdmaxposs), reverse<span class="op">=</span><span class="va">True</span>) <span class="co"># 对所有极大值按强度进行排序</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _, peakpos <span class="kw">in</span> valspeaks[:N_MAXPEAKSPERFRAME]: <span class="co"># 取出前三的频率段</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        peaks_at[col].append(peakpos)</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>peaks_at <span class="op">=</span> [<span class="bu">sorted</span>(peaks) <span class="cf">for</span> peaks <span class="kw">in</span> peaks_at] <span class="co"># 每一帧中选出的频率段按频率大小进行排序，得到星座图</span></span></code></pre></div>
+<h1 id="构建索引">构建索引</h1>
+<p>某种程度上来说，星座图已经可以当作对应音频信号的指纹了。那么，如何通过星座图去匹配某个声音片段和对应的曲目呢？</p>
+<p>我们可以按时间顺序逐个比较两个不同星座图的每一帧的每个点是否在同一位置上。就像最基本的文本检索一样，将一段文字逐字与不同的文章进行比较。可以想象，这种匹配方法是极其缺乏效率的。</p>
+<figure>
+<img src="../images/shazam/element_wise.png" alt="对星座图上每个帧逐个比较" />
+<figcaption aria-hidden="true">对星座图上每个帧逐个比较</figcaption>
+</figure>
+<p>因此，shazam将文本检索的一个优化方法借鉴到了音频检索，即倒排索引。倒排索引的核心即构建词到文章的对应关系。</p>
+<p>于是，我们可以把星座图理解为一篇文章。我们需要把星座图拆成一个一个词，让词与文章位置进行对应。</p>
+<p>然而，和文本中直接划分词略有不同，相比于将星座图中的某个点直接当作词，更好的方式是将当前的点和后面的某个点绑定一起，以此为一个词。</p>
+<figure>
+<img src="../images/shazam/point_contaten.png" alt="前后两个有时间间隔的点组成一个”词”" />
+<figcaption aria-hidden="true">前后两个有时间间隔的点组成一个”词”</figcaption>
+</figure>
+<p>这么做的原因，我们可以从日常经验获得直观感受。如果只听一个音符，很难知道出自哪首曲目。但是，只要听到几个音符组成的简短旋律，特别是一些朗朗上口的流行曲目，我们很容易判断出其出处。</p>
+<p>也就是说，是音符的变化而非独立的音符让不同音乐具备区分性的。</p>
+<p>接下来，我们基于上述原理来构建索引。</p>
+<p>构建索引将围绕星座图进行，对星座图中每个点的处理顺序一般有这个约定：频率从低到高，时间从小到大依次处理每个点。</p>
+<figure>
+<img src="../images/shazam/enumerate_point.png" alt="按序对所有点进行编号" />
+<figcaption aria-hidden="true">按序对所有点进行编号</figcaption>
+</figure>
+<p>首先，我们对上述1号点进行处理。如前所述，我们需要将1号点与其后的某个点进行关联。audfprint中，默认从当前点对应帧的后2个帧开始关联。例如，对于1号点（其在第1帧），我们选取第3帧的第一个点，即6号点。如下所示：</p>
+<figure>
+<img src="../images/shazam/point_contaten_with_index.png" alt="1号点关联6号点" />
+<figcaption aria-hidden="true">1号点关联6号点</figcaption>
+</figure>
+<p>关联后，我们将1号点的角色称为锚点（anchor point）。6号点的角色称为目标点（target point）。它们的信息可生成如下的键值对：</p>
+<p>(锚点的频率，目标点的频率，目标点和锚点所在帧的差值）-&gt; （锚点的所在帧）</p>
+<p>如上图，1号点在第1帧，频率为2。6号点在第3帧，频率为4。于是：</p>
+<ul>
+<li>锚点的频率为2</li>
+<li>目标点的频率为4</li>
+<li>目标点和锚点所在帧的差值为3-1=2</li>
+<li>锚点的所在帧为1</li>
+</ul>
+<p>因此，生成的键值对为(2, 4, 2) -&gt; (1)</p>
+<h2 id="从target-point到target-zone">从target point到target zone</h2>
+<p>shazam算法中运用了一个名为target zone的概念，这是上述的target point概念的延伸。</p>
+<p>target zone可以理解为几个连续的target point组成的集合。于是，锚点和target zone进行关联，如下图。</p>
+<figure>
+<img src="../images/shazam/target_zone.png" alt="锚点关联target zone" />
+<figcaption aria-hidden="true">锚点关联target zone</figcaption>
+</figure>
+<p>锚点和target zone中的target point一一生成键值对，于是以1号点为锚点会产生四个键值对，分别对应6号点直到9号点。</p>
+<p>可以看到，上述的四个键值对都对应到了同一个锚点，即对应到了同一个位置。这是一种通过冗余来保证算法的鲁棒性的做法，毕竟听歌识曲的很多场景都在室外，充满环境噪声和音源的衰减，通过上述做法能够保证即使星座图中有部分点因为失真匹配不上的情况下，依然保证识别率。</p>
+<p>在处理完星座图的1号点后，我们按序以同样方式处理后续的2号点、3号点直到后续某个锚点没有对应的target point为止。由此，一首曲目会产生许多键值对，构成索引数组。</p>
+<p>下面，我们通过之前代码得到的星座图peaks_at来生成索引。代码基本来自audfprint。</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>N_MINDT <span class="op">=</span> <span class="dv">2</span> <span class="co"># target point与anchor point的最小帧距离</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>N_TARGETDT <span class="op">=</span> <span class="dv">63</span> <span class="co"># target point与anchor point的最大帧距离</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>N_MAXPAIRSPERPEAK <span class="op">=</span> <span class="dv">3</span> <span class="co"># target zone大小</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>landmarks <span class="op">=</span> [] <span class="co"># 索引数组</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> col <span class="kw">in</span> <span class="bu">range</span>(scols): <span class="co"># scols为星座图的时长</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> peak <span class="kw">in</span> peaks_at[col]: <span class="co"># 得到星座图中的一个点，作为anchor point</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        pairsthispeak <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> col2 <span class="kw">in</span> <span class="bu">range</span>(col <span class="op">+</span> N_MINDT,</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>                            <span class="bu">min</span>(scols, col <span class="op">+</span> N_TARGETDT)):</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> pairsthispeak <span class="op">&gt;=</span> N_MAXPAIRSPERPEAK:</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> peak2 <span class="kw">in</span> peaks_at[col2]: <span class="co"># 得到target point</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>                landmarks.append((col, peak,</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>                                    peak2, col2 <span class="op">-</span> col))</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>                pairsthispeak <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> pairsthispeak <span class="op">&gt;=</span> N_MAXPAIRSPERPEAK:</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">break</span></span></code></pre></div>
+<h1 id="如何检索">如何检索</h1>
+<h2 id="构造哈希表">构造哈希表</h2>
+<p>首先，我们通过哈希表存放所有曲目的索引信息。由上述的介绍可知，对于每首曲目，我们已经得到了索引数组。我们再来回顾一下索引数组中索引的形式：</p>
+<p>(锚点的频率，目标点的频率，目标点和锚点所在帧的差值）-&gt; （锚点的所在帧）</p>
+<p>我们基于上述形式，再加入对应曲目的ID：</p>
+<p>(锚点的频率，目标点的频率，目标点和锚点所在帧的差值）-&gt; （曲目ID，锚点的所在帧）</p>
+<p>于是，我们将上述的键值对存入哈希表，构成曲目指纹库。</p>
+<p>下面，我们将之前代码得到的索引数组landmarks，存入哈希表中。</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>names <span class="op">=</span> [] <span class="co"># 存储文件名，用于模拟生成曲目ID的场景</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>fingerprintMap <span class="op">=</span> <span class="bu">dict</span>()</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store(filename, landmarks):</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">id</span> <span class="op">=</span> <span class="bu">len</span>(names)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    names.append(filename)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> landmark <span class="kw">in</span> landmarks:</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 将landmark转化为上述的键值对形式</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        key <span class="op">=</span> (landmark[<span class="dv">1</span>], landmark[<span class="dv">2</span>], landmark[<span class="dv">3</span>])</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        value <span class="op">=</span> (<span class="bu">id</span>, landmark[<span class="dv">0</span>])</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> key <span class="kw">not</span> <span class="kw">in</span> fingerprintMap:</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>            fingerprintMap[key] <span class="op">=</span> []</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        fingerprintMap[key].append(value)</span></code></pre></div>
+<h2 id="检索和匹配">检索和匹配</h2>
+<p>最后，我们来看看检索的流程。比如，我们录制了一个音频片段并且想要知道这个片段的曲目名。</p>
+<p>首先，如同对上述曲目的处理一样，我们对该音频片段生成索引，获得索引数组。</p>
+<p>然后，我们将该索引数组中的所有元素的key依次与曲目指纹库进行匹配。</p>
+<p>我们假设，该片段确实来自于库中某个曲目的一部分。那么，片段和该曲目匹配的部分虽然绝对位置不同，但是相对位置是固定的，即其两者绝对位置的差值是一样的。</p>
+<p>而匹配过程中，我们可以得到片段的每个索引与指纹库中哪些索引对应。其中，“某曲目锚点的所在帧 - 片段的锚点的所在帧“即为两者的绝对位置的差值。于是我们可将匹配结果中所有的（某曲目的ID，某曲目锚点的所在帧 - 片段的锚点的所在帧）进行次数统计，出现次数最多的几个结果作为匹配结果。</p>
+<p>下面，我们通过统计上述指标，完成匹配功能。</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> match(landmarks): <span class="co"># landmarks为待查询的声音片段的索引数组</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    hits <span class="op">=</span> <span class="bu">dict</span>()</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> landmark <span class="kw">in</span> landmarks:</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        key <span class="op">=</span> (landmark[<span class="dv">1</span>], landmark[<span class="dv">2</span>], landmark[<span class="dv">3</span>])</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> key <span class="kw">not</span> <span class="kw">in</span> fingerprintMap:</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> targetInfo <span class="kw">in</span> fingerprintMap[key]: <span class="co"># 如果片段的key在指纹库中有匹配</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>            target_id <span class="op">=</span> targetInfo[<span class="dv">0</span>]</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>            search_t <span class="op">=</span> landmark[<span class="dv">0</span>]</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>            target_t <span class="op">=</span> targetInfo[<span class="dv">1</span>]</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>            delta_t <span class="op">=</span> search_t <span class="op">-</span> target_t</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>            hitKey <span class="op">=</span> (target_id, delta_t) <span class="co"># 构造（曲目ID，锚点的所在帧 - 片段的锚点的所在帧）形式，统计其出现的次数</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> hitKey <span class="kw">not</span> <span class="kw">in</span> hits:</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>                hits[hitKey] <span class="op">=</span> [<span class="dv">1</span>, target_t, target_t]</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>            hits[hitKey][<span class="dv">0</span>] <span class="op">+=</span> <span class="dv">1</span> <span class="co"># 统计匹配上的时间点出现的总次数</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>            min_time <span class="op">=</span> hits[hitKey][<span class="dv">1</span>] <span class="co"># 记录匹配上的绝对时间的最小时间</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>            max_time <span class="op">=</span> hits[hitKey][<span class="dv">2</span>] <span class="co"># 记录匹配上的绝对时间的最大时间</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> target_t <span class="op">&lt;</span> min_time:</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>                hits[hitKey][<span class="dv">1</span>] <span class="op">=</span> target_t</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> target_t <span class="op">&gt;</span> max_time:</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>                hits[hitKey][<span class="dv">2</span>] <span class="op">=</span> target_t</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    sorted_hits <span class="op">=</span> <span class="bu">sorted</span>([value <span class="op">+</span> <span class="bu">list</span>(key) <span class="cf">for</span> key, value <span class="kw">in</span> hits.items()], reverse<span class="op">=</span><span class="va">True</span>) <span class="co"># 我们基于（曲目ID，锚点的所在帧 - 片段的锚点的所在帧）出现总次数进行排序</span></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> sorted_hits <span class="co"># [hit_count, match_min_time, match_max_time, match_id, delta_t]</span></span></code></pre></div>
+<h1 id="算法效果演示">算法效果演示</h1>
+<p>接下来，我们尝试构建一个曲目指纹库，并使用一些曲目片段进行检索以考察以下两点：</p>
+<ul>
+<li>片段是否能正确匹配</li>
+<li>片段是否会被误识别</li>
+</ul>
+<p>指纹库方面，我们使用<a href="https://github.com/dpwe/audfprint">audfprint</a>项目中提供的数据集，位于项目的tests/data/Nine_Lives目录，其中存放了13首长度为10秒的曲目片段。为方便阐述，我们取其中前6个曲目生成其指纹并入指纹库。</p>
+<p>至于用于检索的音频，我们首先从这6首中分别截取第3秒~第8秒的内容。然后，为了更好地还原真实的使用场景，我们分别对这些截取内容进行音质劣化，即通过电脑麦克风外放这些截取内容，并用手机录音得到的内容作检索之用。下面我们选取了一个曲目来对比试听原曲和劣化后的效果。</p>
+<figure>
+<audio controls>
+<source src="../embeds/01-clip.mp3" type="audio/mpeg">
+Your browser does not support the audio element.
+</audio>
+<figcaption>
+原片段
+</figcaption>
+</figure>
+<figure>
+<audio controls>
+<source src="../embeds/01-query.mp3" type="audio/mpeg">
+Your browser does not support the audio element.
+</audio>
+<figcaption>
+劣化后的片段
+</figcaption>
+</figure>
+<p>接下来，我们对该劣化后的片段进入曲目指纹库进行匹配，匹配结果即为上一节实现的match(…)函数返回的列表，里面包含所有与库中哪些曲目的哪些片段产生的匹配信息，我们从该列表中分别取出与每个曲目有最大的匹配次数的那个匹配记录。</p>
+<p>然后，我们对剩下的5个劣化后片段同样做上述检索和统计，最终得到如下的表格：</p>
+<div class="shazam-result">
+<table>
+<thead>
+<tr>
+<th></th>
+<th>01.mp3</th>
+<th>02.mp3</th>
+<th>03.mp3</th>
+<th>04.mp3</th>
+<th>05.mp3</th>
+<th>06.mp3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>01-query.mp3</td>
+<td>469</td>
+<td>82</td>
+<td>61</td>
+<td>85</td>
+<td>80</td>
+<td>82</td>
+</tr>
+<tr>
+<td>02-query.mp3</td>
+<td>85</td>
+<td>745</td>
+<td>91</td>
+<td>77</td>
+<td>122</td>
+<td>106</td>
+</tr>
+<tr>
+<td>03-query.mp3</td>
+<td>83</td>
+<td>103</td>
+<td>470</td>
+<td>54</td>
+<td>73</td>
+<td>75</td>
+</tr>
+<tr>
+<td>04-query.mp3</td>
+<td>125</td>
+<td>84</td>
+<td>106</td>
+<td>610</td>
+<td>105</td>
+<td>130</td>
+</tr>
+<tr>
+<td>05-query.mp3</td>
+<td>139</td>
+<td>159</td>
+<td>107</td>
+<td>117</td>
+<td>765</td>
+<td>141</td>
+</tr>
+<tr>
+<td>06-query.mp3</td>
+<td>139</td>
+<td>116</td>
+<td>155</td>
+<td>128</td>
+<td>130</td>
+<td>527</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>其中，每行代表一个片段的检索结果，我们把每行的最大值进行绿色标记。</p>
+<p>可以看到，检索片段与自身对应原曲总有最大的匹配次数，而且该匹配次数都远远高于与其他曲目的匹配次数。说明对该算法最基本的实现已经具备不错的召回性和准确性。此外，我们的实验也验证了算法对于噪声的抵御能力。</p>
+<p>为了让算法能够产生更好的效果，<a href="https://github.com/dpwe/audfprint">audfprint</a>项目中包含很多声学处理的细节，这些处理如何发挥作用是之后可以探索的方向。</p>
+    </div>
+</div>
+        </div>
+
+        <hr>
+        <div class="footer">
+            <p>Powered by <a href="http://jaspervdj.be/hakyll">Hakyll</a>. Style from <a href="https://github.com/travisbrown/metaplasm">metaplasm</a> & <a href="https://github.com/zhe/hugo-theme-slim">slim</a>.</p>
+        </div>
+
+    
+    </div>
+    
+    <script src="../js/slim.js"></script>
+
+    </body>
+
+</html>
