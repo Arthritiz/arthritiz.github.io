@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+        <title>Crisp Blog</title>
+        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <link rel="stylesheet" type="text/css" href="../css/slim.css" />
+        <link rel="stylesheet" type="text/css" href="../css/style.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
+    </head>
+
+    <body>
+    <div class="container">
+        <div class="header">
+            <h1 class="site-title"><a href="../">Crisp Blog</a></h1>
+            <div class="nav">
+                <a class="nav-btn" href="#">
+                    <span class="ci ci-burger"></span>
+                </a>
+                <ul class="nav-list">
+                    
+                    <li class="spacer">∾</li>
+                    <li><a href="../">Home</a></li>
+                    <li><a href="mailto:bodw3@qq.com">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+
+
+        <div class="content">
+            <div class="post">
+    <h1 class="post-title"><a href>拾音器与吉他电路探索（一）：吉他端等效电路</a></h1>
+    <div class="post-date">August  5, 2024</div>
+
+    <div class="post-content">
+        <p>本系列的探索动机来源于对PRS S2中一处特殊的电路设计产生的疑问。为了理解该设计的用意，需要对电路的频响特性进行把握。因此，本文的主要任务是得到从电吉他到负载前的等效电路。基于该等效电路，我们还使用了<a href="../posts/ac_analysis_implementation.html">之前文章</a>实现的AC Analysis工具对比单线圈和双线圈拾音器在频响方面的不同偏好。</p>
+<div>
+
+</div>
+<!--more-->
+<p>对于开头的疑问，将在系列的第二篇文章进行详细探索。</p>
+<h1 id="对prs-s2一处电路设计的疑问">对PRS S2一处电路设计的疑问</h1>
+<p>我们知道，一个常见的单Volume旋钮和单Tone旋钮的吉他电路，有如下形式（图片来自于Seymour Duncan官网的<a href="https://www.seymourduncan.com/resources/pickup/wiring-diagrams">wiring diagrams</a>）：</p>
+<p><img src="../images/pickup_guitar_circuit_1/SD-1H_1V_1T.jpg" /></p>
+<p>我们省略拾音器后，可简化为如下电路：</p>
+<p><img src="../images/pickup_guitar_circuit_1/1hvt-simplified.png" style="width:50.0%" /></p>
+<p>可以看到，Volume电位器<span class="math inline">\(R_V\)</span>一路就是分压之用，Tone电位器<span class="math inline">\(R_T\)</span>一路还有一串联电容来形成滤波特性。</p>
+<p>然而，笔者观察了手中的两把吉他的电路仓，其中PRS S2有一个非常规的设计，它在Volume电位器的左脚和中脚连接了一个电容。</p>
+<figure>
+<img src="../images/pickup_guitar_circuit_1/s2_vol_cap.jpg" style="width:65.0%" alt="注意红色圆圈部分的电容" />
+<figcaption aria-hidden="true">注意红色圆圈部分的电容</figcaption>
+</figure>
+<p>也就是说，有如下电路形式：</p>
+<p><img src="../images/pickup_guitar_circuit_1/s2-1hvt-simplified.png" style="width:50.0%" /></p>
+<p>为了了解这个设计的功效，就需要探索吉他这一侧的电路特性。下面我们尝试构建吉他端的等效电路。</p>
+<h1 id="等效电路的构建">等效电路的构建</h1>
+<p>对于吉他端的等效电路，我们主要考虑以下几个组件：</p>
+<ul>
+<li>拾音器</li>
+<li>吉他电路仓</li>
+<li>吉他连接线</li>
+<li>吉他连接的负载</li>
+</ul>
+<p>下面我们一一进行阐述。</p>
+<h2 id="拾音器">拾音器</h2>
+<p>我们知道，常见的拾音器由磁铁、磁柱和缠绕的线圈等元件组成，其中缠绕的线圈形成电感，而磁铁用于磁化磁柱，磁柱进一步去磁化琴弦。</p>
+<p>当受磁化的琴弦发生运动时，线圈会因磁场的变化而产生变化的电信号。总之，理想拾音器可被看作为电感。</p>
+<p>而在实际情况中，由于拾音器中的线圈本身具备阻值，并且线圈的缠绕会产生额外的电容作用。因此实际的拾音器可被等效为一个由电感、串联的电阻以及并联的电容组成的电路，而运动的琴弦可被等效为电压源。于是，我们可以得到单线圈拾音器的等效电路：</p>
+<figure>
+<img src="../images/pickup_guitar_circuit_1/equivalent_pickup.png" style="width:70.0%" alt="单线圈拾音器的等效电路" />
+<figcaption aria-hidden="true">单线圈拾音器的等效电路</figcaption>
+</figure>
+<p>对于各个等效组件的参数，我们参考对Seymour Duncan SSL-1拾音器的测量结果<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>。作者antigua对于拾音器的参数测量有很多的经验，对于拾音器的特性和测量都有专门的文章<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a><sup>,</sup><a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>。</p>
+<p>这里，我们取琴颈拾音器的等效参数，如下：</p>
+<ul>
+<li>电感L：2.637H</li>
+<li>电容C: 103pF</li>
+<li>电阻R：6.61kΩ</li>
+</ul>
+<h2 id="吉他电路仓">吉他电路仓</h2>
+<p>为了方便表述，我们依旧使用单Volume旋钮和单Tone旋钮场景的电路，相关电路已在本文开头给出，我们将其与拾音器等效电路进行连接。</p>
+<p><img src="../images/pickup_guitar_circuit_1/ckt_add_1hvt.png" /></p>
+<p>由于本文主要探索常规的单Volume旋钮和单Tone旋钮场景，我们暂时忽略本文开头提到的与Volume旋钮并联的电容的场景。</p>
+<p>对于电位器阻值，单线圈一般配合250kΩ的电位器。</p>
+<p>对于Tone旋钮串联的电容容值，Seymour Duncan官网有相关文章对电容值的选择进行了建议<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a>。其中，0.022µF为常见配置。这里也选用该值。</p>
+<h2 id="吉他连接线和连接的负载">吉他连接线和连接的负载</h2>
+<p>我们知道，吉他连接线的许多属性会影响对音色的传递，比如材质、工艺以及长度等。一般而言，吉他连接线带来的影响可被等效为电容。关于电容值，其范围通常在52pF/meter ~ 190pF/meter<a href="#fn5" class="footnote-ref" id="fnref5" role="doc-noteref"><sup>5</sup></a>。</p>
+<p>我们这里取中间值120pF/meter，吉他线长度我们选用常见的3m。因此我们这里，吉他连接线对应的电容容值为360pF</p>
+<p>至于连接的负载，一般具有高阻抗的特点，这里我们直接将负载视为高阻值的电阻。我们参考常见的效果器的输入阻抗，有500kΩ（Ibanez TS-808）、1MΩ（Boss SD-1）等。这里我们使用1MΩ。</p>
+<p>最终，我们可以得到完整的等效电路，如下：</p>
+<p><img src="../images/pickup_guitar_circuit_1/whole_single_coil.png" /></p>
+<h1 id="等效电路的ac-analysis">等效电路的AC Analysis</h1>
+<p>上面我们得到了一个单线圈拾音器到负载前的等效电路，接下来我们可以运用<a href="../posts/ac_analysis_implementation.html">之前文章</a>实现的AC Analysis工具对单线圈形式电路进行频响的观察。</p>
+<p>不过，既然得到了单线圈形式的电路，不妨再构造双线圈形式的电路，最后一并观察。</p>
+<h2 id="双线圈拾音器电路如何等效">双线圈拾音器电路如何等效？</h2>
+<p>双线圈拾音器可理解为由两个单线圈拾音器组成，其原理为在两个单线圈拾音器之间插入一个磁铁，使得两个单线圈拾音器的磁性反向。然后，这两个单线圈拾音器再反向串联，由此使得双线圈拾音器中的俩拾音器信号同相，而环境噪声带来的噪声信号反相。这也是为什么双线圈拾音器的噪音较小的原因。</p>
+<p>我们这里将环境噪声忽略，因此双线圈拾音器可简单等效为两个单线圈拾音器的串联。下面我们直接画出到负载端的完整电路：</p>
+<p><img src="../images/pickup_guitar_circuit_1/whole_humbucker_no_val.png" /></p>
+<h2 id="单线圈和双线圈的频响对比">单线圈和双线圈的频响对比</h2>
+<p>接下来，我们将上述得到的单线圈拾音器和双线圈拾音器进行对比。</p>
+<p>为了保证两个电路的其他变量一致，我们将Volume旋钮和Tone旋钮都打满，即Volume和Tone都为10。于是，该部分电路为如下形式：</p>
+<figure>
+<img src="../images/pickup_guitar_circuit_1/1hvt-all-full-with-val.png" style="width:60.0%" alt="Volume=10, Tone=10下电路仓部分的电路" />
+<figcaption aria-hidden="true">Volume=10, Tone=10下电路仓部分的电路</figcaption>
+</figure>
+<p>最后，我们分别将两个等效电路表示到之前实现的AC Analysis工具<a href="https://github.com/Arthritiz/little_ac_analysis">little_ac_analysis</a>：</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>single_coil_ckt <span class="op">=</span> Circuit(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>                    components <span class="op">=</span> [</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># pickup part</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>                        VoltageSource(V<span class="op">=</span><span class="dv">1</span>, nodes<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>]),</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>                        Inductor(L<span class="op">=</span><span class="fl">2.637</span>, nodes<span class="op">=</span>[<span class="dv">1</span>, <span class="dv">2</span>]),</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>                        Resistor(R<span class="op">=</span><span class="fl">6.61e3</span>, nodes<span class="op">=</span>[<span class="dv">2</span>, <span class="dv">3</span>]),</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">103e-12</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># volume part</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>                        Potentiometer(R<span class="op">=</span><span class="fl">250e3</span>, knob_pos<span class="op">=</span><span class="fl">10.0</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">0</span>], label<span class="op">=</span><span class="st">'Volume Knob'</span>),</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># tone part</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>                        Potentiometer(R<span class="op">=</span><span class="fl">250e3</span>, knob_pos<span class="op">=</span><span class="fl">10.0</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">3</span>, <span class="dv">4</span>], label<span class="op">=</span><span class="st">'Tone Knob'</span>),</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">22e-9</span>, nodes<span class="op">=</span>[<span class="dv">4</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># cable</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">360e-12</span>, nodes<span class="op">=</span>[<span class="dv">5</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># load</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>                        Resistor(R<span class="op">=</span><span class="fl">1e6</span>, nodes<span class="op">=</span>[<span class="dv">5</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>                    ],</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>                    output_node <span class="op">=</span> <span class="dv">5</span>,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>                    name <span class="op">=</span> <span class="st">&quot;single coil guitar&quot;</span>)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>humbucker_ckt <span class="op">=</span> Circuit(</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>                    components <span class="op">=</span> [</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># pickup part</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>                        VoltageSource(V<span class="op">=</span><span class="dv">1</span>, nodes<span class="op">=</span>[<span class="dv">8</span>, <span class="dv">1</span>]),</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>                        Inductor(L<span class="op">=</span><span class="fl">2.637</span>, nodes<span class="op">=</span>[<span class="dv">1</span>, <span class="dv">2</span>]),</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>                        Resistor(R<span class="op">=</span><span class="fl">6.61e3</span>, nodes<span class="op">=</span>[<span class="dv">2</span>, <span class="dv">3</span>]),</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">103e-12</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">8</span>]),</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>                        VoltageSource(V<span class="op">=</span><span class="dv">1</span>, nodes<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">6</span>]),</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>                        Inductor(L<span class="op">=</span><span class="fl">2.637</span>, nodes<span class="op">=</span>[<span class="dv">6</span>, <span class="dv">7</span>]),</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>                        Resistor(R<span class="op">=</span><span class="fl">6.61e3</span>, nodes<span class="op">=</span>[<span class="dv">7</span>, <span class="dv">8</span>]),</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">103e-12</span>, nodes<span class="op">=</span>[<span class="dv">8</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># volume part</span></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>                        Potentiometer(R<span class="op">=</span><span class="fl">250e3</span>, knob_pos<span class="op">=</span><span class="fl">10.0</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">0</span>], label<span class="op">=</span><span class="st">'Volume Knob'</span>),</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># tone part</span></span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>                        Potentiometer(R<span class="op">=</span><span class="fl">250e3</span>, knob_pos<span class="op">=</span><span class="fl">10.0</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">3</span>, <span class="dv">4</span>], label<span class="op">=</span><span class="st">'Tone Knob'</span>),</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">22e-9</span>, nodes<span class="op">=</span>[<span class="dv">4</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># cable</span></span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">360e-12</span>, nodes<span class="op">=</span>[<span class="dv">5</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># load</span></span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>                        Resistor(R<span class="op">=</span><span class="fl">1e6</span>, nodes<span class="op">=</span>[<span class="dv">5</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>                    ],</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>                    output_node <span class="op">=</span> <span class="dv">5</span>,</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>                    name <span class="op">=</span> <span class="st">&quot;humbucker guitar&quot;</span>)</span></code></pre></div>
+<p>我们依次跑出单线圈和双线圈电路的频响数据，以下为使用Plotly库画出的频响对比图：</p>
+<p><img src="../images/pickup_guitar_circuit_1/single_coil_v_humbucker.png" /></p>
+<p>可以看到，两者首先在功率上有所区别，双线圈整体上大于单线圈。</p>
+<p>此外，我们可以看到两种拾音器的频响并不平直，在高频部分都有一定的隆起，单线圈尤为明显。隆起部分被称为resonant peak，其所在频率被称为resonant frequency。resonant peak的高度和resonant frequency的大小在很大程度上决定了拾音器的听感<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a>。</p>
+<p>从图中我们可以看到，虽然双线圈拾音器的整体幅值大于单线圈拾音器，但是其resonant peak不像单线圈拾音器的那么显眼，并且双线圈拾音器的resonant frequency明显小于单线圈的resonant frequency。这应该能为解释为何双线圈拾音器的音色更暖，而单线圈拾音器的音色更亮提供了一个角度。</p>
+<h1 id="更多的探索">更多的探索</h1>
+<p>我们在本文阐述了如何得到从拾音器到负载端的等效电路。并对单线圈拾音器和双线圈拾音器的频响进行了对比。</p>
+<p>下一篇文章，我们将探索Volume旋钮和Tone旋钮的设置对音色的影响，并且尝试回答本文开头的那个疑问。</p>
+<section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p><a href="https://guitarnuts2.proboards.com/thread/7745/seymour-duncan-ssl-analysis-review" class="uri">https://guitarnuts2.proboards.com/thread/7745/seymour-duncan-ssl-analysis-review</a><a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p><a href="https://guitarnuts2.proboards.com/thread/8072/measuring-pickups-lcr-meters" class="uri">https://guitarnuts2.proboards.com/thread/8072/measuring-pickups-lcr-meters</a><a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn3"><p><a href="https://guitarnuts2.proboards.com/thread/7723/measuring-electrical-properties-guitar-pickups" class="uri">https://guitarnuts2.proboards.com/thread/7723/measuring-electrical-properties-guitar-pickups</a><a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn4"><p><a href="https://www.seymourduncan.com/blog/latest-updates/what-tone-capacitors-do-i-need-for-my-guitar" class="uri">https://www.seymourduncan.com/blog/latest-updates/what-tone-capacitors-do-i-need-for-my-guitar</a><a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn5"><p><a href="http://www.shootoutguitarcables.com/guitar-cables-explained/capacitance-chart.html" class="uri">http://www.shootoutguitarcables.com/guitar-cables-explained/capacitance-chart.html</a><a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn6"><p><a href="http://buildyourguitar.com/resources/lemme/" class="uri">http://buildyourguitar.com/resources/lemme/</a><a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>
+    </div>
+</div>
+        </div>
+
+        <hr>
+        <div class="footer">
+            <p>Powered by <a href="http://jaspervdj.be/hakyll">Hakyll</a>. Style from <a href="https://github.com/travisbrown/metaplasm">metaplasm</a> & <a href="https://github.com/zhe/hugo-theme-slim">slim</a>.</p>
+        </div>
+
+    
+    </div>
+    
+    <script src="../js/slim.js"></script>
+
+    </body>
+
+</html>
