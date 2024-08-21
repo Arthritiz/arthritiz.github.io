@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+        <title>Crisp Blog</title>
+        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <link rel="stylesheet" type="text/css" href="../css/slim.css" />
+        <link rel="stylesheet" type="text/css" href="../css/style.css" />
+        <link rel="stylesheet" type="text/css" href="../css/syntax.css" />
+    </head>
+
+    <body>
+    <div class="container">
+        <div class="header">
+            <h1 class="site-title"><a href="../">Crisp Blog</a></h1>
+            <div class="nav">
+                <a class="nav-btn" href="#">
+                    <span class="ci ci-burger"></span>
+                </a>
+                <ul class="nav-list">
+                    
+                    <li class="spacer">∾</li>
+                    <li><a href="../">Home</a></li>
+                    <li><a href="mailto:bodw3@qq.com">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+
+
+        <div class="content">
+            <div class="post">
+    <h1 class="post-title"><a href>拾音器与吉他电路探索（二）：Volume旋钮与Tone旋钮</a></h1>
+    <div class="post-date">August 12, 2024</div>
+
+    <div class="post-content">
+        <p>本文我们将基于系列的上一篇文章得到的等效电路，观察电吉他的Volume旋钮和Tone旋钮对音色的影响。值得注意的是，Volume旋钮除了字面上对于音量有影响外，也会对频响特征产生影响。基于这个发现，我们能够了解PRS S2中的那个特殊设计的初衷，也就是本系列<a href="../posts/pickup_guitar_circuit_1.html">第一篇文章</a>开头的那个疑问。</p>
+<div>
+
+</div>
+<!--more-->
+<h1 id="tone旋钮部分对音色的影响">Tone旋钮部分对音色的影响</h1>
+<p>我们首先观察Tone旋钮的设置对吉他端频响的影响。电路我们直接沿用系列第一篇文章得到的单线圈拾音器等效电路：</p>
+<p><img src="../images/pickup_guitar_circuit_1/whole_single_coil.png" /></p>
+<p>以及通过<a href="https://github.com/Arthritiz/little_ac_analysis">little_ac_analysis</a>工具对该电路进行构造：</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>single_coil_ckt <span class="op">=</span> Circuit(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>                    components <span class="op">=</span> [</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># pickup part</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>                        VoltageSource(V<span class="op">=</span><span class="dv">1</span>, nodes<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>]),</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>                        Inductor(L<span class="op">=</span><span class="fl">2.637</span>, nodes<span class="op">=</span>[<span class="dv">1</span>, <span class="dv">2</span>]),</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>                        Resistor(R<span class="op">=</span><span class="fl">6.61e3</span>, nodes<span class="op">=</span>[<span class="dv">2</span>, <span class="dv">3</span>]),</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">103e-12</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># volume part</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>                        Potentiometer(R<span class="op">=</span><span class="fl">250e3</span>, knob_pos<span class="op">=</span><span class="fl">10.0</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">0</span>], label<span class="op">=</span><span class="st">'Volume Knob'</span>),</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># tone part</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>                        Potentiometer(R<span class="op">=</span><span class="fl">250e3</span>, knob_pos<span class="op">=</span><span class="fl">10.0</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">3</span>, <span class="dv">4</span>], label<span class="op">=</span><span class="st">'Tone Knob'</span>),</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">22e-9</span>, nodes<span class="op">=</span>[<span class="dv">4</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># cable</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>                        Capacitor(C<span class="op">=</span><span class="fl">360e-12</span>, nodes<span class="op">=</span>[<span class="dv">5</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>                        <span class="co"># load</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>                        Resistor(R<span class="op">=</span><span class="fl">1e6</span>, nodes<span class="op">=</span>[<span class="dv">5</span>, <span class="dv">0</span>]),</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>                    ],</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>                    output_node <span class="op">=</span> <span class="dv">5</span>,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>                    name <span class="op">=</span> <span class="st">&quot;single coil guitar&quot;</span>)</span></code></pre></div>
+<p>我们调整上述代码中label为”Tone Knob”的Potentiometer的值，依次得到不同Tone值下的频响，并将频响曲线们绘制到同一个plot中：</p>
+<p><img src="../images/pickup_guitar_circuit_2/tone_knob_scatter.png" /></p>
+<p>可以看到，Tone旋钮主要对200Hz之后的频率产生影响，其中对2kHz~5kHz有明显影响。随着Tone值不断减小，吉他端频响曲线中标志性的resonant peak逐渐消失，频响慢慢呈现低通特性。</p>
+<h1 id="volume旋钮部分对音色的影响">Volume旋钮部分对音色的影响</h1>
+<p>下面我们运用类似的方法观察Volume旋钮的调整对吉他端频响的影响。</p>
+<p>我们沿用上面的单线圈电路代码，然后调整代码中label为”Volume Knob”的Potentiometer的值，依次得到不同Volume值下的频响。下面是汇总的频响曲线图：</p>
+<p><img src="../images/pickup_guitar_circuit_2/volume_knob_scatter.png" /></p>
+<p>可以看到，随着Volume值的变小，整体频响并非等分贝地下降。与Tone旋钮类似，Volume值的减小让resonant peak逐渐消失，并逐渐呈现低通特性。也就是说，Volume值的减小会使吉他音色变得沉闷。</p>
+<p>对于这个现象的原因也显而易见，吉他电路仓中的Volume旋钮部分与前级是直接相连的，没有通过诸如Input Buffer的设计做隔离，因此Volume旋钮除了分压以外，也会影响到前级的滤波特性。</p>
+<h2 id="treble-bleed电容">Treble-Bleed电容</h2>
+<p>为了缓解Volume旋钮的减小带来的高频损失，一个常见的做法是在Volume旋钮上并联一个电容。由于这个电容的目的是减少高频的损失，也被称为treble-bleed电容。</p>
+<p>在本系列<a href="../posts/pickup_guitar_circuit_1.html">第一篇文章</a>的开头，我们提及了PRS S2中的一处电容就是这个效用。</p>
+<p>下面我们继续通过<a href="https://github.com/Arthritiz/little_ac_analysis">little_ac_analysis</a>工具分析加入treble-bleed电容的电路的频响，并将其与无treble-bleed电容的电路进行对比。</p>
+<p>首先，我们需要得到一般用于treble-bleed电容的电容值。笔者将PRS S2中的那颗电容拆下，并用万用表进行测量，得到电容值为171pF。</p>
+<p><img src="../images/pickup_guitar_circuit_2/s2-treble_bleed_cap.jpg" style="width:55.0%" /></p>
+<p>为了方便阐述，我们沿用前述的单线圈等效电路，并在该电路的指定位置添加一个treble-bleed电容，下面直接通过代码表达该电路：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>single_coil_with_bleed_cap_ckt <span class="op">=</span> Circuit(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                                    components <span class="op">=</span> [</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>                                        <span class="co"># pickup part</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                                        VoltageSource(V<span class="op">=</span><span class="dv">1</span>, nodes<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>]),</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>                                        Inductor(L<span class="op">=</span><span class="fl">2.637</span>, nodes<span class="op">=</span>[<span class="dv">1</span>, <span class="dv">2</span>]),</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>                                        Resistor(R<span class="op">=</span><span class="fl">6.61e3</span>, nodes<span class="op">=</span>[<span class="dv">2</span>, <span class="dv">3</span>]),</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>                                        Capacitor(C<span class="op">=</span><span class="fl">103e-12</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">0</span>]),</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>                                        <span class="co"># volume part</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>                                        Potentiometer(R<span class="op">=</span><span class="fl">250e3</span>, knob_pos<span class="op">=</span><span class="fl">10.0</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">0</span>], label<span class="op">=</span><span class="st">'Volume Knob'</span>),</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>                                        <span class="co"># tone part</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>                                        Potentiometer(R<span class="op">=</span><span class="fl">250e3</span>, knob_pos<span class="op">=</span><span class="fl">10.0</span>, nodes<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">3</span>, <span class="dv">4</span>], label<span class="op">=</span><span class="st">'Tone Knob'</span>),</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>                                        Capacitor(C<span class="op">=</span><span class="fl">22e-9</span>, nodes<span class="op">=</span>[<span class="dv">4</span>, <span class="dv">0</span>]),</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>                                        <span class="co"># treble bleed cap</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>                                        Capacitor(<span class="fl">171e-12</span>, [<span class="dv">5</span>, <span class="dv">3</span>]),</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>                                        <span class="co"># cable</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>                                        Capacitor(C<span class="op">=</span><span class="fl">360e-12</span>, nodes<span class="op">=</span>[<span class="dv">5</span>, <span class="dv">0</span>]),</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>                                        <span class="co"># load</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>                                        Resistor(R<span class="op">=</span><span class="fl">1e6</span>, nodes<span class="op">=</span>[<span class="dv">5</span>, <span class="dv">0</span>]),</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>                                    ],</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>                                    output_node <span class="op">=</span> <span class="dv">5</span>,</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>                                    name <span class="op">=</span> <span class="st">&quot;single coil guitar with treble bleed cap&quot;</span>)</span></code></pre></div>
+<p>最后，我们依次得到带有treble-bleed电容的电路在各个Volume值下的频响，并将其与无treble-bleed电容的电路的频响进行对比，得到如下plot结果：</p>
+<iframe src="../embeds/treble_bleed_cap.html">
+</iframe>
+<p>我们通过滑动Volume Knob减小Volume值，可以发现从Volume=7.0开始，treble-bleed电容的存在逐渐产生效果。随着Volume值越小，其高频部分在整个频响中愈发突出。</p>
+    </div>
+</div>
+        </div>
+
+        <hr>
+        <div class="footer">
+            <p>Powered by <a href="http://jaspervdj.be/hakyll">Hakyll</a>. Style from <a href="https://github.com/travisbrown/metaplasm">metaplasm</a> & <a href="https://github.com/zhe/hugo-theme-slim">slim</a>.</p>
+        </div>
+
+    
+    </div>
+    
+    <script src="../js/slim.js"></script>
+
+    </body>
+
+</html>
